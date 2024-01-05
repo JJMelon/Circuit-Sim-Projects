@@ -1,6 +1,8 @@
 from __future__ import division
 from itertools import count
-
+from models.Buses import Buses
+from scripts.stamp_helpers import *
+from models.global_vars import global_vars
 
 class Shunts:
     _ids = count(0)
@@ -18,7 +20,7 @@ class Shunts:
                  controlBus,
                  flag_control_shunt_bus=False,
                  Nsteps=[0],
-                 Bstep=[0]):
+                 Bsteps=[0]):
 
         """ Initialize a shunt in the power grid.
         Args:
@@ -36,8 +38,49 @@ class Shunts:
             Nsteps (list): the number of steps by which the switched shunt should adjust itself
             Bstep (list): the admittance increase for each step in Nstep as MVar at unity voltage
         """
+        self.Bus = Bus
+        self.G_MW = G_MW
+        self.B_MVAR = B_MVAR
+        self.shunt_type = shunt_type
+        self.Vhi = Vhi
+        self.Vlo = Vlo
+        self.Bmax = Bmax
+        self.Bmin = Bmin
+        self.Binit = Binit
+        self.controlBus = controlBus
+        self.flag_control_shunt_bus = flag_control_shunt_bus
+        self.Nsteps = Nsteps
+        self.Bsteps= Bsteps
         self.id = self._ids.__next__()
+        self.G_pu = G_MW/global_vars.base_MVA
+        self.B_pu = B_MVAR/global_vars.base_MVA
 
-        # You will need to implement the remainder of the __init__ function yourself.
-        # You should also add some other class functions you deem necessary for stamping,
-        # initializing, and processing results.
+    def assign_indexes(self, bus):
+        self.Vr_node = bus[Buses.bus_key_[self.Bus]].node_Vr
+        self.Vi_node = bus[Buses.bus_key_[self.Bus]].node_Vi
+
+    def stamp(self, V, Y_val, Y_row, Y_col, J_val, J_row, idx_Y, idx_J):
+        # Review: Shunts are represented by capacitor paralleled with conductance
+        # Equivalent Split-Circuit is VCCS paralleled with Conductance
+        # VCCS: -Bsh (real), Bsh (imag)
+
+        # Real Circuit Conductance
+        idx_Y = stampY(self.Vr_node, self.Vr_node,
+                                    self.G_pu, Y_val, Y_row, Y_col, idx_Y)
+        # Imag Circuit Conductance
+        idx_Y = stampY(self.Vi_node, self.Vi_node,
+                                    self.G_pu, Y_val, Y_row, Y_col, idx_Y)
+        # Real Circuit VCCS
+        idx_Y = stampY(self.Vr_node, self.Vi_node,
+                                    -self.B_pu, Y_val, Y_row, Y_col, idx_Y)
+        # Imag Circuit VCCS
+        idx_Y = stampY(self.Vi_node, self.Vr_node,
+                                    self.B_pu, Y_val, Y_row, Y_col, idx_Y)
+        return (idx_Y, idx_J)
+
+    def calc_residuals(self, resid, V):
+        Vr = V[self.Vr_node]
+        Vi = V[self.Vi_node]
+
+        resid[self.Vr_node] += -self.B_pu*Vi + self.G_pu*Vr
+        resid[self.Vi_node] += self.B_pu*Vr + self.G_pu*Vi

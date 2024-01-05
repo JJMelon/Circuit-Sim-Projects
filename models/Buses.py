@@ -29,13 +29,17 @@ class Buses:
 
         self.Bus = Bus
         self.Type = Type
+        self.Vm_init = Vm_init
+        self.Va_init = Va_init
+        self.Vr_init = Vm_init*np.cos(Va_init*np.pi/180)
+        self.Vi_init = Vm_init*np.sin(Va_init*np.pi/180)
 
         # initialize all nodes
         self.node_Vr = None  # real voltage node at a bus
         self.node_Vi = None  # imaginary voltage node at a bus
         self.node_Q = None  # reactive power or voltage contstraint node at a bus
 
-        # initialize the bus key
+        # initialize the bus key (bus number is direct from RAW data, bus id is used in calculations)
         self.idAllBuses = self._idsAllBuses.__next__()
         Buses.all_bus_key_[self.Bus] = self.idAllBuses - 1
 
